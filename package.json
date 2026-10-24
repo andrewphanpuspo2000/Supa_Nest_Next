@@ -1,0 +1,12 @@
+{
+  "name": "supavolt",
+  "private": true,
+  "scripts": {
+    "dev:api": "pnpm --filter api run start:dev --workspace=api",
+    "dev:web": "pnpm --filter frontend run dev",
+    "dev": "concurrently \"pnpm run dev:api\" \"pnpm run dev:web\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}
