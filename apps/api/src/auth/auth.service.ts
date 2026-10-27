@@ -28,7 +28,7 @@ export class AuthService {
   //Cookie helpers
   setTokenCookies(
     res: Response,
-    tokens: { accessToken: string; refreshToke: string },
+    tokens: { accessToken: string; refreshToken: string },
   ) {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
 
@@ -39,7 +39,7 @@ export class AuthService {
       maxAge: 15 * 60 * 1000,
     });
 
-    res.cookie(COOKIE_KEYS.REFRESH_TOKEN, tokens.refreshToke, {
+    res.cookie(COOKIE_KEYS.REFRESH_TOKEN, tokens.refreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
