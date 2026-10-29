@@ -20,12 +20,12 @@ import { JwtPayload } from '@supavolt/types';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly drizzle: DrizzleService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private drizzle: DrizzleService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
-  //Cookie helpers
+  // Cookie helpers
   setTokenCookies(
     res: Response,
     tokens: { accessToken: string; refreshToken: string },
@@ -52,15 +52,14 @@ export class AuthService {
     res.clearCookie(COOKIE_KEYS.REFRESH_TOKEN);
   }
 
-  //Slug helper
-  private generateOrgSlug(name: string) {
+  // Slug helper
+  private generateOrgSlug(name: string): string {
     const base = slugify(`${name}-org`, { lower: true, strict: true });
     const suffix = randomBytes(3).toString('hex');
     return `${base}-${suffix}`;
   }
 
-  // JWT Signing
-
+  // JWT signing
   private signTokens(userId: string, email: string) {
     const payload = { sub: userId, email };
 
@@ -77,6 +76,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  // Email + Password
   async register(dto: RegisterDto) {
     const existing = await this.drizzle.db
       .select()
@@ -103,9 +103,11 @@ export class AuthService {
       })
       .returning();
 
-    await this.drizzle.db
-      .insert(orgMembers)
-      .values({ orgId: org.id, userId: user.id, role: 'admin' });
+    await this.drizzle.db.insert(orgMembers).values({
+      orgId: org.id,
+      userId: user.id,
+      role: 'admin',
+    });
 
     return this.signTokens(user.id, user.email);
   }
@@ -118,12 +120,13 @@ export class AuthService {
       .limit(1);
 
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Invalid Credentials');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
-
-    if (!passwordMatch) throw new UnauthorizedException('Invalid Credentials');
+    if (!passwordMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     return this.signTokens(user.id, user.email);
   }
@@ -143,16 +146,16 @@ export class AuthService {
       if (!user) throw new UnauthorizedException();
 
       return this.signTokens(user.id, user.email);
-    } catch (err) {
+    } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
-  ///OAuth upsert helpers
+  // OAuth upsert helpers
   async handleOAuthUser(profile: {
     email: string;
     name: string;
-    avatarUrl: string;
+    avatarUrl: string | null;
   }) {
     let [user] = await this.drizzle.db
       .select()
@@ -186,6 +189,7 @@ export class AuthService {
         role: 'admin',
       });
     }
+
     return this.signTokens(user.id, user.email);
   }
 
@@ -209,7 +213,7 @@ export class AuthService {
         code,
         client_id: this.configService.get<string>('GOOGLE_CLIENT_ID')!,
         client_secret: this.configService.get<string>('GOOGLE_CLIENT_SECRET')!,
-        redirect_url: this.configService.get<string>('GOOGLE_CALLBACK_URL')!,
+        redirect_uri: this.configService.get<string>('GOOGLE_CALLBACK_URL')!,
         grant_type: 'authorization_code',
       }),
     });
@@ -232,7 +236,7 @@ export class AuthService {
     return this.handleOAuthUser({
       email: profile.email,
       name: profile.name,
-      avatarUrl: (profile.picture as string) ?? null,
+      avatarUrl: profile.picture ?? null,
     });
   }
 
@@ -240,14 +244,15 @@ export class AuthService {
     const params = new URLSearchParams({
       client_id: this.configService.get<string>('GITHUB_CLIENT_ID')!,
       redirect_uri: this.configService.get<string>('GITHUB_CALLBACK_URL')!,
-      scope: `read:user user:email`,
+      scope: 'read:user user:email',
     });
+
     return `https://github.com/login/oauth/authorize?${params.toString()}`;
   }
 
   async handleGithubCallback(code: string) {
     const tokenRes = await fetch(
-      `https://github.com/login/oauth/access_token`,
+      'https://github.com/login/oauth/access_token',
       {
         method: 'POST',
         headers: {
@@ -256,11 +261,9 @@ export class AuthService {
         },
         body: JSON.stringify({
           client_id: this.configService.get<string>('GITHUB_CLIENT_ID'),
-          client_service: this.configService.get<string>(
-            'GITHUB_CLIENT_SECRET',
-          ),
+          client_secret: this.configService.get<string>('GITHUB_CLIENT_SECRET'),
           code,
-          redirect_url: this.configService.get<string>('GITHUB_CALLBACK_URL'),
+          redirect_uri: this.configService.get<string>('GITHUB_CALLBACK_URL'),
         }),
       },
     );
@@ -282,7 +285,6 @@ export class AuthService {
     };
 
     let email = profile.email;
-
     if (!email) {
       const emailRes = await fetch('https://api.github.com/user/emails', {
         headers: {
@@ -290,7 +292,6 @@ export class AuthService {
           Accept: 'application/vnd.github+json',
         },
       });
-
       const emails = (await emailRes.json()) as {
         email: string;
         primary: boolean;
@@ -298,10 +299,11 @@ export class AuthService {
       }[];
       email = emails.find((e) => e.primary && e.verified)?.email ?? null;
     }
+
     return this.handleOAuthUser({
       email: email!,
       name: profile.name ?? profile.login,
-      avatarUrl: (profile.avatar_url as string) ?? null,
+      avatarUrl: profile.avatar_url ?? null,
     });
   }
 }

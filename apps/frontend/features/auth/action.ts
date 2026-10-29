@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { authServerSchema } from "./server.schema";
 import { AUTH_INTENT } from "./constant";
+import { applyAuthCookiesFromResponse } from "./cookies";
 
 export type AuthActionState = {
   error?: string;
@@ -26,15 +27,15 @@ export async function authAction(
   }
   const { intent, ...data } = parsed.data;
 
+  let res: Response;
+
   switch (intent) {
     case AUTH_INTENT.LOGIN: {
-      const res = await fetch(`${process.env.API_URL}/auth/login`, {
+      res = await fetch(`${process.env.API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(data),
       });
-
       if (!res.ok) {
         const body = await res.json();
         return { error: body.message ?? "Login failed" };
@@ -43,10 +44,9 @@ export async function authAction(
     }
 
     case AUTH_INTENT.REGISTER: {
-      const res = await fetch(`${process.env.API_URL}/auth/register`, {
+      res = await fetch(`${process.env.API_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(data),
       });
       if (!res.ok) {
@@ -56,6 +56,6 @@ export async function authAction(
       break;
     }
   }
-
+  await applyAuthCookiesFromResponse(res!);
   redirect("/dashboard");
 }

@@ -10,7 +10,6 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-
 import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { COOKIE_KEYS } from '@supavolt/constants';
@@ -21,17 +20,22 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 
-/**
- * Passthrough adalah untuk supaya response dari res dan return dalam belun object di handle oleh nest
- * kalau tidak ada passthrough:true maka object return tidak terkirim ke front end
- *
- */
 @Controller('auth')
 export class AuthController {
   constructor(
-    private readonly authService: AuthService,
-    private readonly configService: ConfigService,
+    private authService: AuthService,
+    private configService: ConfigService,
   ) {}
+
+  @Post('register')
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.register(dto);
+    this.authService.setTokenCookies(res, tokens);
+    return { message: 'Registered successfully' };
+  }
 
   @Post('login')
   @HttpCode(200)
@@ -57,7 +61,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies[COOKIE_KEYS.REFRESH_TOKEN];
+    const refreshToken = req.cookies[COOKIE_KEYS.REFRESH_TOKEN] as string;
     const tokens = await this.authService.refreshTokens(refreshToken);
     this.authService.setTokenCookies(res, tokens);
     return { message: 'Tokens refreshed' };
@@ -76,9 +80,11 @@ export class AuthController {
   }
 
   @Get('google/callback')
-  async googleCallBack(@Query('code') code: string, @Res() res: Response) {
+  async googleCallback(@Query('code') code: string, @Res() res: Response) {
     const tokens = await this.authService.handleGoogleCallback(code);
+
     this.authService.setTokenCookies(res, tokens);
+
     return res.redirect(
       `${this.configService.get<string>('WEB_URL')}/dashboard`,
     );
